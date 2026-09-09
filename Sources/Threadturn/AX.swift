@@ -1,5 +1,6 @@
 import AppKit
 import ApplicationServices
+import os.log
 
 /// 一个辅助功能树节点的轻量快照。
 final class Node {
@@ -211,14 +212,21 @@ enum Parsers {
 
     /// 激活应用并尝试点到那条会话。
     static func open(_ p: Platform, title: String) {
-        if let app = NSWorkspace.shared.runningApplications.first(where: { $0.localizedName == p.appName }) {
-            app.activate(options: [.activateIgnoringOtherApps])
-        } else {
+        os_log("open %{public}@ / %{public}@", log: log, p.appName, title)
+        guard let app = NSWorkspace.shared.runningApplications.first(where: { $0.localizedName == p.appName }) else {
             NSWorkspace.shared.launchApplication(p.appName)
             return
         }
-        DispatchQueue.global().asyncAfter(deadline: .now() + 0.3) {
-            guard let root = AX.windowTree(p.appName) else { return }
+        // 先让出前台再激活对方，macOS 14+ 需要这样才可靠
+        if #available(macOS 14.0, *) { NSApp.yieldActivation(to: app) }
+        app.activate(options: [.activateIgnoringOtherApps])
+        if let url = app.bundleURL {
+            let cfg = NSWorkspace.OpenConfiguration(); cfg.activates = true
+            NSWorkspace.shared.openApplication(at: url, configuration: cfg)
+        }
+        DispatchQueue.global().asyncAfter(deadline: .now() + 0.6) {
+            guard let root = AX.windowTree(p.appName) else { os_log("open: no window", log: log); return }
+            AXUIElementPerformAction(root.el, kAXRaiseAction as CFString)
             let target: Node?
             switch p {
             case .chatgpt: target = chatgptChatButtons(root).first { $0.desc == title }
@@ -227,7 +235,7 @@ enum Parsers {
                 let list = root.first { $0.role == "AXGroup" && $0.desc == "Bot 列表" }
                 target = list?.first { $0.role == "AXButton" && $0.desc == title }
             }
-            if let t = target { AX.press(t) }
+            if let t = target { AX.press(t); os_log("open: pressed sidebar item", log: log) } else { os_log("open: sidebar item not found", log: log) }
         }
     }
 }

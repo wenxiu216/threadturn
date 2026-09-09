@@ -1,6 +1,9 @@
 import AppKit
 import SwiftUI
 import UserNotifications
+import os.log
+
+let log = OSLog(subsystem: "com.threadturn.app", category: "app")
 
 final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     let store = Store()
@@ -9,6 +12,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     var timer: Timer?
     let queue = DispatchQueue(label: "poll", qos: .utility)
     var notificationsReady = false
+
+    func applicationWillFinishLaunching(_ n: Notification) {
+        if Bundle.main.bundleIdentifier != nil {
+            UNUserNotificationCenter.current().delegate = self
+        }
+    }
 
     func applicationDidFinishLaunching(_ n: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -26,9 +35,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
         store.permissionOK = AX.trusted(prompt: true)
         if Bundle.main.bundleIdentifier != nil {
-            UNUserNotificationCenter.current().delegate = self
             UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { ok, _ in
                 self.notificationsReady = ok
+            }
+        }
+        // 调试：THREADTURN_TEST_NOTIFY=1 启动时，2 秒后对第一条「轮到我」发一条测试通知
+        if ProcessInfo.processInfo.environment["THREADTURN_TEST_NOTIFY"] == "1" {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                if let t = self.store.list(.me).first ?? self.store.list(.ai).first {
+                    self.notify(Event(platform: t.platform, title: t.title, body: "测试通知，点我应该跳到这条对话。"))
+                }
             }
         }
         refreshTitle()
@@ -97,6 +113,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive r: UNNotificationResponse, withCompletionHandler h: @escaping () -> Void) {
         let u = r.notification.request.content.userInfo
+        os_log("notification clicked: %{public}@", log: log, "\(u)")
         if let p = (u["platform"] as? String).flatMap(Platform.init(rawValue:)), let t = u["title"] as? String {
             Parsers.open(p, title: t)
         }

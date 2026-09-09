@@ -2,7 +2,8 @@
 # 编译并打包成 ~/Applications/Threadturn.app
 set -e
 cd "$(dirname "$0")"
-swift build -c release 2>&1 | grep -E 'error|warning: unre|Compiling|Build complete' | grep -v 'warning' || true
+rm -f .build/release/Threadturn
+swift build -c release 2>&1 | grep -E 'error|Compiling|Build complete' | grep -v 'warning' || true
 BIN=.build/release/Threadturn
 [ -x "$BIN" ] || { echo "编译失败"; exit 1; }
 APP="$HOME/Applications/Threadturn.app"

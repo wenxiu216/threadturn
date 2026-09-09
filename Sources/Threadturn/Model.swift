@@ -151,7 +151,7 @@ final class Store: ObservableObject {
                     if t == nil {
                         t = Task(key: key, platform: s.platform, title: title, court: .ai, at: now, wakeAt: nil)
                     } else if t!.court != .ai {
-                        t!.court = .ai; t!.at = now; t!.wakeAt = nil; t!.seen = false; t!.flips += 1
+                        t!.court = .ai; t!.at = now; t!.wakeAt = nil; t!.seen = false; t!.flips += 1; t!.lastNotified = nil
                     }
                     t!.replySig = nil
                 case .replied:
@@ -195,7 +195,7 @@ final class Store: ObservableObject {
                 let running = c.running!
                 if var t = tasks[key] {
                     if running, t.court != .ai {
-                        t.court = .ai; t.at = now; t.wakeAt = nil; t.seen = false; t.flips += 1
+                        t.court = .ai; t.at = now; t.wakeAt = nil; t.seen = false; t.flips += 1; t.lastNotified = nil
                     } else if !running, t.sideRunning == true, t.court == .ai {
                         // 前台那条由前台逻辑负责；这里只管不在前台的
                         if s.front?.title != c.title {
@@ -244,7 +244,7 @@ final class Store: ObservableObject {
         for (k, t) in tasks where t.court == .done && now.timeIntervalSince(t.at) > (t.hidden ? 60 : 7) * 86400 { tasks[k] = nil }
         lastPoll = now
         save()
-        // 同一条同一轮只通知一次；同一条 10 分钟内不重复提醒
+        // 同一条同一轮只通知一次；同一轮里 10 分钟内不重复提醒（你一发消息就重新计时）
         var seenKeys = Set<String>()
         var out: [Event] = []
         for e in events {
