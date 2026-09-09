@@ -225,17 +225,37 @@ enum Parsers {
             NSWorkspace.shared.openApplication(at: url, configuration: cfg)
         }
         DispatchQueue.global().asyncAfter(deadline: .now() + 0.6) {
-            guard let root = AX.windowTree(p.appName) else { os_log("open: no window", log: log); return }
-            AXUIElementPerformAction(root.el, kAXRaiseAction as CFString)
-            let target: Node?
-            switch p {
-            case .chatgpt: target = chatgptChatButtons(root).first { $0.desc == title }
-            case .claude: target = root.first { n in n.role == "AXButton" && n.staticTexts().first == title && n.first { ($0.role == "AXImage" || $0.role == "AXGroup") && ($0.desc == "Idle" || $0.desc == "Running") } != nil }
-            case .grok:
-                let list = root.first { $0.role == "AXGroup" && $0.desc == "Bot 列表" }
-                target = list?.first { $0.role == "AXButton" && $0.desc == title }
+            // 依次尝试：原样找 → 展开侧栏 → 切到 Code 模式 → 切到 Chat 模式
+            let steps: [(Node) -> Bool] = [
+                { _ in true },
+                { root in if let b = root.first({ $0.role == "AXButton" && $0.desc == "Show sidebar" }) { AX.press(b); return true }; return false },
+                { root in if let b = root.first({ $0.role == "AXRadioButton" && $0.desc == "Code" }) { AX.press(b); return true }; return false },
+                { root in if let b = root.first({ $0.role == "AXRadioButton" && $0.desc == "Chat and Cowork" }) { AX.press(b); return true }; return false },
+            ]
+            for (i, step) in steps.enumerated() {
+                guard let root = AX.windowTree(p.appName) else { os_log("open: no window", log: log); return }
+                if i == 0 { AXUIElementPerformAction(root.el, kAXRaiseAction as CFString) }
+                if i > 0 {
+                    // 只有 Claude 才有侧栏折叠和模式切换
+                    guard p == .claude, step(root) else { continue }
+                    Thread.sleep(forTimeInterval: 0.9)
+                    guard let again = AX.windowTree(p.appName) else { return }
+                    if let t = find(p, in: again, title: title) { AX.press(t); os_log("open: pressed after step %d", log: log, i); return }
+                    continue
+                }
+                if let t = find(p, in: root, title: title) { AX.press(t); os_log("open: pressed sidebar item", log: log); return }
             }
-            if let t = target { AX.press(t); os_log("open: pressed sidebar item", log: log) } else { os_log("open: sidebar item not found", log: log) }
+            os_log("open: sidebar item not found", log: log)
+        }
+    }
+
+    static func find(_ p: Platform, in root: Node, title: String) -> Node? {
+        switch p {
+        case .chatgpt: return chatgptChatButtons(root).first { $0.desc == title }
+        case .claude: return root.first { n in n.role == "AXButton" && n.staticTexts().first == title && n.first { ($0.role == "AXImage" || $0.role == "AXGroup") && ($0.desc == "Idle" || $0.desc == "Running") } != nil }
+        case .grok:
+            let list = root.first { $0.role == "AXGroup" && $0.desc == "Bot 列表" }
+            return list?.first { $0.role == "AXButton" && $0.desc == title }
         }
     }
 }
