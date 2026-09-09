@@ -44,6 +44,16 @@ open ~/Applications/Threadturn.app
 
 On first launch macOS asks for Accessibility permission. Grant it in **System Settings → Privacy & Security → Accessibility**.
 
+### If the toggle is on but the menu bar still shows `!`
+
+macOS keys the Accessibility grant to the app's bundle identifier and code signature. If either changed since the grant (for example after the bundle id was renamed), the switch in System Settings can look enabled while the running app is still denied. Close System Settings, then reset the stale record and relaunch:
+
+```bash
+tccutil reset Accessibility com.threadturn.app && pkill -x Threadturn; open ~/Applications/Threadturn.app
+```
+
+Approve the prompt that appears. The app also offers a **Request permission** button in its popover whenever it detects the grant is missing.
+
 ### Keeping the permission across rebuilds
 
 Ad-hoc signed builds get a new signature every time, and macOS revokes the Accessibility grant when the signature changes. Run this once to create a local self-signed certificate; `build.sh` will use it automatically from then on:

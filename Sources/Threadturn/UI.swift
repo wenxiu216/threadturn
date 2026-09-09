@@ -4,6 +4,7 @@ struct PopoverView: View {
     @ObservedObject var store: Store
     var onOpen: (Task) -> Void
     var onQuit: () -> Void
+    var onRequestPermission: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -30,6 +31,7 @@ struct PopoverView: View {
             Spacer()
             if !store.permissionOK {
                 Text("缺辅助功能权限").font(.system(size: 11)).foregroundColor(.red)
+                Button("申请权限", action: onRequestPermission).font(.system(size: 11)).controlSize(.small)
             } else if store.paused {
                 Text("已暂停").font(.system(size: 11)).foregroundColor(.secondary)
             } else if let p = store.lastPoll {

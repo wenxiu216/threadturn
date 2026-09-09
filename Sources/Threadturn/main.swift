@@ -18,7 +18,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         popover.contentViewController = NSHostingController(rootView: PopoverView(store: store, onOpen: { [weak self] t in
             self?.popover.performClose(nil)
             Parsers.open(t.platform, title: t.title)
-        }, onQuit: { NSApp.terminate(nil) }))
+        }, onQuit: { NSApp.terminate(nil) }, onRequestPermission: { [weak self] in self?.requestPermission() }))
+        // 系统辅助功能授权一变就立刻重查，不用等下一轮
+        DistributedNotificationCenter.default().addObserver(forName: NSNotification.Name("com.apple.accessibility.api"), object: nil, queue: .main) { [weak self] _ in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self?.poll() }
+        }
 
         store.permissionOK = AX.trusted(prompt: true)
         if Bundle.main.bundleIdentifier != nil {
@@ -39,6 +43,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         popover.show(relativeTo: b.bounds, of: b, preferredEdge: .minY)
         popover.contentViewController?.view.window?.makeKey()
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func requestPermission() {
+        popover.performClose(nil)
+        _ = AX.trusted(prompt: true)
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+            NSWorkspace.shared.open(url)
+        }
     }
 
     func poll() {
