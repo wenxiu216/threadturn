@@ -5,6 +5,10 @@ struct PopoverView: View {
     var onOpen: (Task) -> Void
     var onQuit: () -> Void
     var onRequestPermission: () -> Void
+    @State private var filter: Platform? = nil
+
+    func items(_ b: Bucket) -> [Task] { store.list(b).filter { filter == nil || $0.platform == filter } }
+    func count(_ b: Bucket) -> Int { items(b).count }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -14,8 +18,8 @@ struct PopoverView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     section(.me)
                     section(.ai)
-                    if store.count(.later) > 0 { section(.later) }
-                    if store.count(.done) > 0 { section(.done) }
+                    if count(.later) > 0 { section(.later) }
+                    if count(.done) > 0 { section(.done) }
                 }
                 .padding(12)
             }
@@ -28,6 +32,9 @@ struct PopoverView: View {
     var header: some View {
         HStack(spacing: 10) {
             Text("Threadturn").font(.system(size: 15, weight: .semibold))
+            if let f = filter {
+                Text("· 只看 \(f.short)").font(.system(size: 12)).foregroundColor(.secondary)
+            }
             Spacer()
             if !store.permissionOK {
                 Text("缺辅助功能权限").font(.system(size: 11)).foregroundColor(.red)
@@ -44,11 +51,20 @@ struct PopoverView: View {
     var footer: some View {
         HStack(spacing: 12) {
             ForEach(Platform.allCases, id: \.self) { p in
-                HStack(spacing: 4) {
-                    Circle().fill(color(p)).frame(width: 7, height: 7)
-                    Text(p.short).font(.system(size: 11))
-                        .foregroundColor(store.appsSeen[p] == true ? .primary : .secondary)
+                Button {
+                    filter = (filter == p) ? nil : p
+                } label: {
+                    HStack(spacing: 4) {
+                        Circle().fill(color(p)).frame(width: 7, height: 7)
+                        Text(p.short).font(.system(size: 11))
+                            .foregroundColor(filter == nil || filter == p ? .primary : .secondary)
+                    }
+                    .padding(.horizontal, 7).padding(.vertical, 3)
+                    .background(Capsule().fill(filter == p ? color(p).opacity(0.18) : Color.clear))
+                    .opacity(store.appsSeen[p] == true || filter == p ? 1 : 0.55)
                 }
+                .buttonStyle(.plain)
+                .help(filter == p ? "取消筛选" : "只看 \(p.short)")
             }
             Spacer()
             Toggle("监测", isOn: Binding(get: { !store.paused }, set: { store.paused = !$0 }))
@@ -60,11 +76,11 @@ struct PopoverView: View {
 
     @ViewBuilder
     func section(_ b: Bucket) -> some View {
-        let items = store.list(b)
+        let items = items(b)
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text(b.label).font(.system(size: 11, weight: .semibold)).foregroundColor(bucketColor(b))
-                Text("\(store.count(b))").font(.system(size: 11, design: .monospaced)).foregroundColor(.secondary)
+                Text("\(items.count)").font(.system(size: 11, design: .monospaced)).foregroundColor(.secondary)
                 Spacer()
             }
             if items.isEmpty {
