@@ -116,6 +116,7 @@ struct PopoverView: View {
     func actions(_ t: Task) -> some View {
         switch t.bucket {
         case .me:
+            small("忽略") { store.remove(t.key) }
             Menu("稍后") {
                 Button("30 分钟") { store.snooze(t.key, minutes: 30) }
                 Button("2 小时") { store.snooze(t.key, minutes: 120) }
@@ -127,8 +128,10 @@ struct PopoverView: View {
             }.menuStyle(.borderlessButton).font(.system(size: 11)).frame(width: 52)
             small("完成") { store.done(t.key) }
         case .ai:
+            small("忽略") { store.remove(t.key) }
             small("完成") { store.done(t.key) }
         case .later:
+            small("忽略") { store.remove(t.key) }
             small("现在") { store.now(t.key) }
             small("完成") { store.done(t.key) }
         case .done:
@@ -139,6 +142,7 @@ struct PopoverView: View {
 
     func small(_ label: String, _ f: @escaping () -> Void) -> some View {
         Button(label, action: f).font(.system(size: 11)).controlSize(.small)
+            .help(label == "忽略" ? "藏起来，AI 有新回复时再出现" : "")
     }
 
     func stateText(_ t: Task) -> String {
