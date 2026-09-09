@@ -16,6 +16,8 @@ struct Task: Codable, Identifiable {
     var sidePreview: String?   // Grok 侧栏上次的预览
     var flips: Int = 0
     var hidden: Bool = false   // 「忽略」：留着记录但不显示，来新回复再冒出来
+    var obsSig: String?        // 上一轮读到的签名（用来判断回复是否已经稳定）
+    var lastNotified: Date?    // 上次提醒时间（限频）
 
     init(key: String, platform: Platform, title: String, court: Court, at: Date, wakeAt: Date?) {
         self.key = key; self.platform = platform; self.title = title; self.court = court; self.at = at; self.wakeAt = wakeAt
@@ -35,6 +37,8 @@ struct Task: Codable, Identifiable {
         sidePreview = try c.decodeIfPresent(String.self, forKey: .sidePreview)
         flips = try c.decodeIfPresent(Int.self, forKey: .flips) ?? 0
         hidden = try c.decodeIfPresent(Bool.self, forKey: .hidden) ?? false
+        obsSig = try c.decodeIfPresent(String.self, forKey: .obsSig)
+        lastNotified = try c.decodeIfPresent(Date.self, forKey: .lastNotified)
     }
 
     var bucket: Bucket {
@@ -153,25 +157,30 @@ final class Store: ObservableObject {
                 case .replied:
                     if var x = t {
                         let sig = f.sig
-                        switch x.court {
-                        case .ai:
-                            x.court = .me; x.at = now; x.wakeAt = nil; x.seen = false; x.flips += 1; x.hidden = false
-                            events.append(Event(platform: s.platform, title: title, body: "回了，轮到你。"))
-                        case .done:
-                            // 已完成之后又来了新回复：自动放回
-                            if let old = x.replySig, old != sig {
-                                x.court = .me; x.at = now; x.wakeAt = nil; x.seen = false; x.flips += 1; x.hidden = false
-                                events.append(Event(platform: s.platform, title: title, body: "又回了一条，放回「轮到我」。"))
+                        // 回复还在一个字一个字往外冒时签名每轮都变；连续两轮不变才算回完
+                        let stable = (x.obsSig == sig)
+                        x.obsSig = sig
+                        let viewing = (frontmostApp == s.platform.appName)   // 你正在这条对话里
+                        if stable {
+                            switch x.court {
+                            case .ai:
+                                x.court = .me; x.at = now; x.wakeAt = nil; x.seen = viewing; x.flips += 1; x.hidden = false
+                                if !viewing { events.append(Event(platform: s.platform, title: title, body: "回了，轮到你。")) }
+                            case .done:
+                                // 已完成之后又来了新回复：自动放回
+                                if let old = x.replySig, old != sig {
+                                    x.court = .me; x.at = now; x.wakeAt = nil; x.seen = viewing; x.flips += 1; x.hidden = false
+                                    if !viewing { events.append(Event(platform: s.platform, title: title, body: "又回了一条，放回「轮到我」。")) }
+                                }
+                            case .me:
+                                if let old = x.replySig, old != sig, f.messages > (Int(old.split(separator: "|").first ?? "0") ?? 0) {
+                                    x.at = now; x.seen = viewing; x.wakeAt = nil
+                                    if !viewing { events.append(Event(platform: s.platform, title: title, body: "又回了一条。")) }
+                                }
                             }
-                        case .me:
-                            if let old = x.replySig, old != sig {
-                                x.at = now; x.seen = false; x.wakeAt = nil
-                                events.append(Event(platform: s.platform, title: title, body: "又回了一条。"))
-                            }
+                            x.replySig = sig
                         }
-                        x.replySig = sig
-                        // 你正盯着这条看，就算看过了
-                        if frontmostApp == s.platform.appName, x.court == .me { x.seen = true }
+                        if viewing, x.court == .me { x.seen = true }
                         t = x
                     }
                     // 第一次见就已经是 AI 回过的历史会话：不记，免得把老会话全翻出来
@@ -209,14 +218,15 @@ final class Store: ObservableObject {
                 let key = "\(s.platform.rawValue)|\(c.title)"
                 let preview = c.preview!
                 let hasNotice = noticed.contains(c.title)
+                let viewing = (frontmostApp == s.platform.appName && s.front?.title == c.title)
                 if var t = tasks[key] {
                     let changed = (t.sidePreview != nil && t.sidePreview != preview)
                     if hasNotice && t.court == .ai {
-                        t.court = .me; t.at = now; t.wakeAt = nil; t.seen = false; t.flips += 1; t.hidden = false
-                        events.append(Event(platform: s.platform, title: c.title, body: "回了，轮到你。"))
+                        t.court = .me; t.at = now; t.wakeAt = nil; t.seen = viewing; t.flips += 1; t.hidden = false
+                        if !viewing { events.append(Event(platform: s.platform, title: c.title, body: "回了，轮到你。")) }
                     } else if hasNotice && changed && t.court == .done {
-                        t.court = .me; t.at = now; t.wakeAt = nil; t.seen = false; t.flips += 1; t.hidden = false
-                        events.append(Event(platform: s.platform, title: c.title, body: "又回了一条，放回「轮到我」。"))
+                        t.court = .me; t.at = now; t.wakeAt = nil; t.seen = viewing; t.flips += 1; t.hidden = false
+                        if !viewing { events.append(Event(platform: s.platform, title: c.title, body: "又回了一条，放回「轮到我」。")) }
                     } else if hasNotice && changed && t.court == .me {
                         t.at = now; t.seen = false
                     }
@@ -224,9 +234,9 @@ final class Store: ObservableObject {
                     tasks[key] = t
                 } else if hasNotice {
                     var t = Task(key: key, platform: s.platform, title: c.title, court: .me, at: now, wakeAt: nil)
-                    t.sidePreview = preview
+                    t.sidePreview = preview; t.seen = viewing
                     tasks[key] = t
-                    events.append(Event(platform: s.platform, title: c.title, body: "回了，轮到你。"))
+                    if !viewing { events.append(Event(platform: s.platform, title: c.title, body: "回了，轮到你。")) }
                 }
             }
         }
@@ -234,9 +244,18 @@ final class Store: ObservableObject {
         for (k, t) in tasks where t.court == .done && now.timeIntervalSince(t.at) > (t.hidden ? 60 : 7) * 86400 { tasks[k] = nil }
         lastPoll = now
         save()
-        // 同一条同一轮只通知一次
+        // 同一条同一轮只通知一次；同一条 10 分钟内不重复提醒
         var seenKeys = Set<String>()
-        return events.filter { seenKeys.insert("\($0.platform.rawValue)|\($0.title)").inserted }
+        var out: [Event] = []
+        for e in events {
+            let k = "\(e.platform.rawValue)|\(e.title)"
+            guard seenKeys.insert(k).inserted else { continue }
+            if let t = tasks[k], let ln = t.lastNotified, now.timeIntervalSince(ln) < 600 { continue }
+            tasks[k]?.lastNotified = now
+            out.append(e)
+        }
+        if !out.isEmpty { save() }
+        return out
     }
 }
 
