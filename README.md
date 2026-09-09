@@ -81,4 +81,4 @@ docs/prototype.html the original interaction prototype (browser only)
 
 ## License
 
-MIT
+[PolyForm Noncommercial 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0). You may use, modify and share Threadturn for personal, educational, research and other noncommercial purposes. Commercial use is not permitted without a separate license from the author.
