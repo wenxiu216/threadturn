@@ -1,0 +1,418 @@
+<meta charset="utf-8">
+<title>轮到谁</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#EEF1F5;--surface:#FFFFFF;--surface2:#F5F7FA;--ink:#1A212C;--muted:#68717F;--line:#D8DEE6;--line2:#EAEEF3;
+  --accent:#2D4FA6;--accent-ink:#FFFFFF;--accent-soft:#E4EAF8;
+  --me:#B4540E;--me-bg:#FBEEDF;
+  --ai:#2F7C85;--ai-bg:#E2F0F1;
+  --hot:#B23434;--hot-bg:#FAE6E6;
+  --ok:#4E7A4C;--ok-bg:#E6F0E4;
+  --focus:#7EA0E8;--shadow:0 12px 40px rgba(26,33,44,.14);
+  --p-chatgpt:#10A37F;--p-grok:#5B6478;--p-claude:#D97757;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12151A;--surface:#1B1F26;--surface2:#21262E;--ink:#E7EAEF;--muted:#8C95A3;--line:#2E353F;--line2:#272D36;
+  --accent:#8AA7F0;--accent-ink:#0F1420;--accent-soft:#232C42;
+  --me:#EBA060;--me-bg:#3A2A17;--ai:#72C3CB;--ai-bg:#16333A;--hot:#F07878;--hot-bg:#3D1F1F;--ok:#8FC28C;--ok-bg:#1F3320;
+  --focus:#7EA0E8;--shadow:0 12px 40px rgba(0,0,0,.5);--p-grok:#9AA3B8;
+}}
+:root[data-theme="dark"]{
+  --bg:#12151A;--surface:#1B1F26;--surface2:#21262E;--ink:#E7EAEF;--muted:#8C95A3;--line:#2E353F;--line2:#272D36;
+  --accent:#8AA7F0;--accent-ink:#0F1420;--accent-soft:#232C42;
+  --me:#EBA060;--me-bg:#3A2A17;--ai:#72C3CB;--ai-bg:#16333A;--hot:#F07878;--hot-bg:#3D1F1F;--ok:#8FC28C;--ok-bg:#1F3320;
+  --focus:#7EA0E8;--shadow:0 12px 40px rgba(0,0,0,.5);--p-grok:#9AA3B8;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"IBM Plex Sans","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;font-size:13.5px;line-height:1.5;-webkit-font-smoothing:antialiased}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none;padding:0}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+kbd{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace;font-size:10.5px;padding:1px 5px;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;color:var(--muted);background:var(--surface)}
+.mono{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+
+.app{display:grid;grid-template-columns:224px minmax(0,1fr);min-height:100vh}
+/* ---------- sidebar ---------- */
+.side{background:var(--surface);border-right:1px solid var(--line);padding:22px 14px 18px;display:flex;flex-direction:column;gap:6px}
+.brand{display:flex;align-items:center;gap:10px;padding:2px 10px 18px;font-weight:600;font-size:17px;letter-spacing:.5px}
+.brand svg{width:22px;height:22px}
+.navlabel{font-size:10.5px;letter-spacing:1.5px;color:var(--muted);padding:14px 10px 6px;text-transform:uppercase}
+.nav{display:flex;align-items:center;gap:9px;width:100%;padding:8px 10px;border-radius:7px;text-align:left}
+.nav:hover{background:var(--surface2)}
+.nav[aria-current="true"]{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.nav .n{margin-left:auto;font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.nav[aria-current="true"] .n{color:var(--accent)}
+.nav .hot{margin-left:auto;font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--hot);background:var(--hot-bg);padding:0 6px;border-radius:9px}
+.nav .sq{width:10px;height:10px;border-radius:3px;flex:none}
+.nav .k{font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--muted);opacity:.6}
+.plat-row .sq{border-radius:50%}
+.side .foot{margin-top:auto;padding:12px 10px 0;border-top:1px solid var(--line2);font-size:11.5px;color:var(--muted);display:flex;flex-direction:column;gap:10px}
+.setting{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.setting select{background:var(--surface2);border:1px solid var(--line);border-radius:5px;padding:2px 4px;font-size:11.5px;color:var(--ink)}
+.switch{width:30px;height:17px;border-radius:9px;background:var(--line);position:relative;flex:none}
+.switch::after{content:"";position:absolute;top:2px;left:2px;width:13px;height:13px;border-radius:50%;background:var(--surface);transition:left .15s}
+.switch[aria-checked="true"]{background:var(--accent)}
+.switch[aria-checked="true"]::after{left:15px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg button{padding:2px 7px;font-size:11px;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent)}
+.privacy{line-height:1.55}
+.privacy b{font-weight:500;color:var(--ink)}
+.linkbtn{color:var(--muted);text-decoration:underline;font-size:11.5px;text-align:left}
+
+/* ---------- main ---------- */
+.main{padding:26px 34px 30px;min-width:0;display:flex;flex-direction:column;gap:16px}
+.head{display:flex;align-items:flex-start;gap:16px}
+.head h1{margin:0;font-size:22px;font-weight:600;letter-spacing:-.2px}
+.head p{margin:3px 0 0;color:var(--muted);font-size:12.5px}
+.head .tools{margin-left:auto;display:flex;gap:8px;align-items:center}
+.search{background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:8px 11px;width:200px;font-size:12.5px}
+.search::placeholder{color:var(--muted)}
+.primary{background:var(--accent);color:var(--accent-ink);border-radius:7px;padding:8px 13px;font-weight:600;display:inline-flex;align-items:center;gap:9px;white-space:nowrap}
+.primary kbd{background:transparent;border-color:color-mix(in srgb,var(--accent-ink) 40%,transparent);color:var(--accent-ink);opacity:.85}
+.primary:hover{filter:brightness(1.08)}
+
+.summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:12px 14px;display:flex;align-items:center;gap:12px;text-align:left}
+.tile:hover{border-color:var(--muted)}
+.tile .big{font-family:"IBM Plex Mono",monospace;font-size:26px;font-weight:500;line-height:1;font-variant-numeric:tabular-nums}
+.tile .lbl{font-size:12px;color:var(--muted);line-height:1.35}
+.tile .lbl b{display:block;font-weight:600;color:var(--ink);font-size:12.5px}
+.tile.me .big{color:var(--me)}.tile.hot .big{color:var(--hot)}.tile.ai .big{color:var(--ai)}
+
+.listhead{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--muted);padding:2px 2px 0}
+.listhead strong{font-weight:600;color:var(--ink)}
+.listhead .r{margin-left:auto}
+.list{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:visible}
+.row{display:grid;grid-template-columns:96px minmax(0,1fr) auto auto;gap:14px;align-items:center;padding:12px 14px 12px 12px;border-top:1px solid var(--line2);position:relative;border-left:3px solid transparent}
+.row:first-child{border-top:0;border-top-left-radius:9px;border-top-right-radius:9px}
+.row:last-child{border-bottom-left-radius:9px;border-bottom-right-radius:9px}
+.row:hover{background:var(--surface2)}
+.row[data-sel="true"]{background:var(--surface2);outline:2px solid var(--focus);outline-offset:-2px;z-index:1}
+.row.hot{border-left-color:var(--hot)}
+.row.me{border-left-color:var(--me)}
+.row.ai{border-left-color:var(--ai)}
+.row.done{opacity:.72}
+.plat{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);white-space:nowrap}
+.plat i{width:9px;height:9px;border-radius:50%;flex:none}
+.sq.chatgpt,.plat.chatgpt i{background:var(--p-chatgpt)}.sq.grok,.plat.grok i{background:var(--p-grok)}.sq.claude,.plat.claude i{background:var(--p-claude)}
+.title{font-weight:500;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.title a{color:inherit;text-decoration:none}
+.title a:hover{text-decoration:underline}
+.next{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
+.next::before{content:"↳ ";opacity:.7}
+.age{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--muted);white-space:nowrap;text-align:right;font-variant-numeric:tabular-nums;line-height:1.4}
+.age b{display:block;font-weight:500}
+.row.hot .age b{color:var(--hot)}.row.me .age b{color:var(--me)}.row.ai .age b{color:var(--ai)}
+.acts{display:flex;gap:5px;align-items:center;justify-content:flex-end;min-width:224px}
+.acts button,.acts summary,.acts a{font-size:11.5px;padding:5px 9px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);white-space:nowrap;text-decoration:none;line-height:1.3;cursor:pointer;list-style:none}
+.acts summary::-webkit-details-marker{display:none}
+.acts button:hover,.acts summary:hover,.acts a:hover{border-color:var(--muted)}
+.acts .go{color:var(--accent);border-color:var(--accent-soft);background:var(--accent-soft)}
+.acts .fin{color:var(--ok);background:var(--ok-bg);border-color:var(--ok-bg)}
+.acts .flip{font-weight:500}
+.acts details{position:relative}
+.acts .menu{position:absolute;right:0;top:calc(100% + 4px);background:var(--surface);border:1px solid var(--line);border-radius:7px;box-shadow:var(--shadow);padding:4px;display:flex;flex-direction:column;min-width:130px;z-index:5}
+.acts .menu button{border:0;text-align:left;border-radius:5px;background:none}
+.acts .menu button:hover{background:var(--surface2)}
+.empty{padding:44px 20px;text-align:center;color:var(--muted);font-size:13px}
+.empty b{display:block;color:var(--ink);font-weight:500;margin-bottom:4px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:11.5px;color:var(--muted);align-items:center}
+.legend span{display:inline-flex;gap:5px;align-items:center}
+.notes{font-size:11.5px;color:var(--muted);line-height:1.6;border-top:1px solid var(--line2);padding-top:12px;margin-top:auto}
+.notes b{font-weight:500;color:var(--ink)}
+
+
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 14px 10px 16px;border-radius:9px;font-size:12.5px;display:none;align-items:center;gap:14px;box-shadow:var(--shadow);z-index:20;max-width:calc(100vw - 32px)}
+.toast[data-on="true"]{display:flex}
+.toast button{color:inherit;text-decoration:underline;font-weight:500}
+.toast kbd{border-color:currentColor;color:inherit;background:transparent;opacity:.7}
+
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+@media (max-width:900px){
+  .app{grid-template-columns:1fr}
+  .side{flex-direction:row;flex-wrap:wrap;align-items:center;padding:12px;gap:4px;border-right:0;border-bottom:1px solid var(--line)}
+  .brand{padding:0 8px 0 0}.navlabel,.plat-row,.side .foot{display:none}
+  .nav{width:auto;padding:6px 9px}.nav .k{display:none}
+  .main{padding:18px 14px 24px}
+  .summary{grid-template-columns:1fr}
+  .row{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"plat age" "body body" "acts acts";gap:6px 10px}
+  .row .plat{grid-area:plat}.row .body{grid-area:body}.row .age{grid-area:age}.row .acts{grid-area:acts;justify-content:flex-start;min-width:0;flex-wrap:wrap}
+  .search{width:130px}.primary kbd{display:none}
+  .two{grid-template-columns:1fr}
+}
+</style>
+
+<div class="app">
+  <aside class="side">
+    <div class="brand"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 3a9 9 0 0 1 0 18" fill="var(--accent)"/></svg>轮到谁</div>
+    <nav id="nav" aria-label="视图"></nav>
+    <div class="navlabel">按 AI 筛</div>
+    <div id="plats"></div>
+    <div class="foot">
+      <div class="setting"><span>等 AI 超过</span><select id="threshold" aria-label="等待阈值"><option value="3">3 分钟</option><option value="5" selected>5 分钟</option><option value="10">10 分钟</option><option value="30">30 分钟</option></select><span>就催</span></div>
+      <div class="setting"><span>系统通知</span><button class="switch" id="notif" role="switch" aria-checked="false" aria-label="系统通知"></button></div>
+      <div class="setting"><span>外观</span><div class="seg" id="theme"><button data-t="system">跟随</button><button data-t="light">浅</button><button data-t="dark">深</button></div></div>
+      <div class="privacy"><b>只存这台电脑。</b>不登录、不读账号、不爬会话；它只读你已经打开的 AI 页面，看最后一条是谁发的，仅此而已。</div>
+      <button class="linkbtn" id="reset">重置演示数据</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="head">
+      <div><h1 id="h1">轮到我</h1><p id="sub"></p></div>
+      <div class="tools">
+        <input class="search" id="q" placeholder="搜会话标题… /" aria-label="搜索">
+        <button class="primary" id="add">记下当前会话 <kbd>⌘K</kbd></button>
+      </div>
+    </div>
+
+    <div class="summary" id="summary"></div>
+
+    <div class="listhead"><strong id="lh"></strong><span id="lhsub"></span><span class="r" id="sortnote"></span></div>
+    <div class="list" id="list" role="list"></div>
+
+    <div class="legend"><span><kbd>J</kbd><kbd>K</kbd> 上下</span><span><kbd>↵</kbd> 打开会话</span><span><kbd>R</kbd> 换边（回了它 / 它回了）</span><span><kbd>S</kbd> 稍后 30 分钟</span><span><kbd>D</kbd> 完成</span><span><kbd>N</kbd> / <kbd>⌘K</kbd> 记下当前会话</span><span><kbd>1</kbd>–<kbd>4</kbd> 切视图</span><span><kbd>Z</kbd> 撤销</span></div>
+
+    <div class="notes"><b>这版是交互原型，还不是真软件。</b>录入没有任何输入框，也不用选：真做成浏览器插件后，它读你当前打开的 AI 页面，看最后一条消息是谁发的，自动判定「等 AI」还是「轮到我」；AI 在后台标签页回了，会自动翻面并通知你。这里的「记下当前会话」用的是模拟标签页。<button class="linkbtn" id="simreply" style="margin-left:8px">模拟：某个 AI 回了一条 →</button></div>
+  </main>
+</div>
+
+
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(function(){
+const $=s=>document.querySelector(s);
+const KEY='whose-turn-v1', SET='whose-turn-settings';
+const PLATFORMS=[['ChatGPT','chatgpt'],['Grok','grok'],['Claude','claude']];
+const M=60000;
+let tasks=[], settings={threshold:5, notif:false, theme:'system'};
+let view='me', platFilter='', sel=null, undo=null, toastTimer=null, notified=new Set();
+
+function sample(){
+  const n=Date.now();
+  return [
+    {id:1,platform:'ChatGPT',title:'新产品第一版方案',next:'',url:'',court:'me',at:n-14*M,wakeAt:null},
+    {id:2,platform:'ChatGPT',title:'邮件草稿润色',next:'',url:'',court:'me',at:n-38*M,wakeAt:null},
+    {id:3,platform:'Claude',title:'小说第 8 章 · 第二稿',next:'',url:'',court:'ai',at:n-9*M,wakeAt:null},
+    {id:4,platform:'Claude',title:'代码审查笔记',next:'',url:'',court:'ai',at:n-22*M,wakeAt:null},
+    {id:5,platform:'Grok',title:'竞品分析 · 补充案例',next:'',url:'',court:'ai',at:n-2*M,wakeAt:null},
+    {id:6,platform:'Claude',title:'英文文案最后一轮润色',next:'',url:'',court:'me',at:n-60*M,wakeAt:n+45*M},
+    {id:7,platform:'Grok',title:'周报数据口径',next:'',url:'',court:'done',at:n-120*M,wakeAt:null}
+  ];
+}
+function load(){
+  try{const t=JSON.parse(localStorage.getItem(KEY));if(Array.isArray(t))tasks=t}catch{}
+  if(!tasks.length)tasks=sample();
+  try{Object.assign(settings,JSON.parse(localStorage.getItem(SET))||{})}catch{}
+}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(tasks));localStorage.setItem(SET,JSON.stringify(settings))}catch{}}
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const slug=p=>p.toLowerCase();
+
+function bucket(t,now=Date.now()){
+  if(t.court==='done')return 'done';
+  if(t.court==='ai')return 'ai';
+  return (t.wakeAt&&t.wakeAt>now)?'later':'me';
+}
+const isHot=(t,now=Date.now())=>t.court==='ai'&&now-t.at>=settings.threshold*M;
+function counts(){
+  const now=Date.now(),c={me:0,ai:0,hot:0,later:0,done:0,plat:{}};
+  for(const t of tasks){
+    const b=bucket(t,now);c[b]++;
+    if(isHot(t,now))c.hot++;
+    if(b==='me'||b==='ai')c.plat[t.platform]=(c.plat[t.platform]||0)+1;
+  }
+  return c;
+}
+function fmtAgo(ms){
+  const m=Math.round(ms/M);
+  if(m<1)return '刚刚';if(m<60)return m+' 分钟';const h=Math.floor(m/60);if(h<24)return h+' 小时';return Math.floor(h/24)+' 天';
+}
+function fmtAt(ts){return new Date(ts).toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}
+function ageCell(t,now){
+  const b=bucket(t,now);
+  if(b==='done')return `<b>已完成</b>${fmtAt(t.at)}`;
+  if(b==='later')return `<b>稍后</b>${fmtAt(t.wakeAt)} 回来`;
+  if(b==='ai')return isHot(t,now)?`<b>该去看了</b>发出 ${fmtAgo(now-t.at)}`:`<b>等 AI</b>发出 ${fmtAgo(now-t.at)}`;
+  return `<b>轮到我</b>放了 ${fmtAgo(now-t.at)}`;
+}
+function actions(t){
+  const b=bucket(t);
+  const open=t.url?`<a class="go" href="${esc(t.url)}" target="_blank" rel="noopener noreferrer">打开 ↗</a>`:'';
+  if(b==='done')return `<button data-a="restore">放回来</button>`;
+  if(b==='ai')return `${open}<button class="flip" data-a="flip">它回了 → 轮到我</button><button class="fin" data-a="done">完成</button>`;
+  if(b==='later')return `${open}<button class="flip" data-a="now">现在处理</button><button class="fin" data-a="done">完成</button>`;
+  return `${open}<button class="flip" data-a="flip">回了它 → 等 AI</button><details><summary>稍后 ▾</summary><div class="menu"><button data-a="snooze" data-m="30">30 分钟后</button><button data-a="snooze" data-m="120">2 小时后</button><button data-a="snooze" data-m="tomorrow">明早 9 点</button></div></details><button class="fin" data-a="done">完成</button>`;
+}
+
+const VIEWS={
+  me:['轮到我','它已经回了，等你处理的会话。','me'],
+  ai:['等 AI','你发出去、还没回头看的会话。超过阈值会催你。','ai'],
+  later:['稍后','你主动延后的，到点自动回到「轮到我」。','later'],
+  done:['已完成','收尾了的会话，需要时放回来。','done']
+};
+
+function render(){
+  const now=Date.now(),c=counts();
+  document.title=(c.me+c.hot?`(${c.me+c.hot}) `:'')+'轮到谁';
+  $('#nav').innerHTML=[
+    ['me','轮到我',c.me,'me'],['ai','等 AI',c.ai,'ai'],['later','稍后',c.later,''],['done','已完成',c.done,'ok']
+  ].map(([id,name,n,col],i)=>`<button class="nav" data-view="${id}" aria-current="${view===id}"><span class="sq" style="background:var(--${col||'muted'})"></span>${name}<span class="k">${i+1}</span>${id==='ai'&&c.hot?`<span class="hot">${c.hot} 该看</span>`:''}<span class="n">${n}</span></button>`).join('');
+  $('#plats').innerHTML=PLATFORMS.map(([p,s])=>`<button class="nav plat-row" data-plat="${p}" aria-current="${platFilter===p}"><span class="sq ${s}"></span>${p}<span class="n">${c.plat[p]||0}</span></button>`).join('');
+  $('#h1').textContent=VIEWS[view][0]+(platFilter?' · '+platFilter:'');
+  $('#sub').textContent=VIEWS[view][1];
+  $('#summary').innerHTML=`
+    <button class="tile me" data-view="me"><span class="big">${c.me}</span><span class="lbl"><b>轮到我</b>AI 回了，等你处理</span></button>
+    <button class="tile hot" data-view="ai"><span class="big">${c.hot}</span><span class="lbl"><b>该去看了</b>发出超过 ${settings.threshold} 分钟没回头</span></button>
+    <button class="tile ai" data-view="ai"><span class="big">${c.ai-c.hot}</span><span class="lbl"><b>还在等</b>刚发出去，先别管</span></button>`;
+  const q=$('#q').value.trim().toLowerCase();
+  let list=tasks.filter(t=>bucket(t,now)===view&&(!platFilter||t.platform===platFilter)&&(!q||(t.title+' '+t.next).toLowerCase().includes(q)));
+  if(view==='ai')list.sort((a,b)=>(isHot(b,now)-isHot(a,now))||(a.at-b.at));
+  else if(view==='me')list.sort((a,b)=>a.at-b.at);
+  else if(view==='later')list.sort((a,b)=>a.wakeAt-b.wakeAt);
+  else list.sort((a,b)=>b.at-a.at);
+  $('#lh').textContent=VIEWS[view][0]+' · '+list.length;
+  $('#lhsub').textContent=q?`匹配「${q}」`:'';
+  $('#sortnote').textContent={me:'放得最久的在最上',ai:'该看的在最上，其余按发出时间',later:'按回来时间',done:'最近完成在最上'}[view];
+  if(sel!=null&&!list.some(t=>t.id===sel))sel=list[0]?list[0].id:null;
+  $('#list').innerHTML=list.map(t=>{
+    const b=bucket(t,now),cls=b==='ai'?(isHot(t,now)?'hot':'ai'):b;
+    const title=t.url?`<a href="${esc(t.url)}" target="_blank" rel="noopener noreferrer">${esc(t.title)}</a>`:esc(t.title);
+    return `<div class="row ${cls}" role="listitem" data-id="${t.id}" data-sel="${sel===t.id}" tabindex="0">
+      <span class="plat ${slug(t.platform)}"><i></i>${t.platform}</span>
+      <div class="body"><div class="title">${title}</div>${t.next?`<div class="next">${esc(t.next)}</div>`:''}</div>
+      <div class="age">${ageCell(t,now)}</div>
+      <div class="acts">${actions(t)}</div></div>`;
+  }).join('')||`<div class="empty">${emptyText(q)}</div>`;
+  maybeNotify(now);
+}
+function emptyText(q){
+  if(q||platFilter)return '<b>没有匹配的会话</b>换个词，或清掉筛选。';
+  return {me:'<b>没有轮到你的事</b>安心去做别的。AI 回了会自动翻过来。',ai:'<b>没有在等的会话</b>在 AI 页面按一下 ⌘K，就记好了，什么都不用填。',later:'<b>没有延后的会话</b>',done:'<b>还没完成任何会话</b>'}[view];
+}
+
+function mutate(fn,msg){
+  undo=JSON.parse(JSON.stringify(tasks));fn();save();render();toast(msg,true);
+}
+function act(id,a,m){
+  const t=tasks.find(t=>t.id===id);if(!t)return;const now=Date.now();
+  if(a==='done')mutate(()=>{t.court='done';t.at=now;t.wakeAt=null},'已完成。');
+  else if(a==='flip'){
+    if(t.court==='ai')mutate(()=>{t.court='me';t.at=now;t.wakeAt=null},'翻到「轮到我」。');
+    else mutate(()=>{t.court='ai';t.at=now;t.wakeAt=null;notified.delete(t.id)},`翻到「等 AI」，${settings.threshold} 分钟没回头会催你。`);
+  }
+  else if(a==='snooze'){
+    let w=now+Number(m)*M;if(m==='tomorrow'){const d=new Date();d.setDate(d.getDate()+1);d.setHours(9,0,0,0);w=d.getTime()}
+    mutate(()=>{t.wakeAt=w;notified.delete(t.id)},'延后到 '+fmtAt(w)+'。');
+  }
+  else if(a==='now')mutate(()=>{t.wakeAt=null},'放回「轮到我」。');
+  else if(a==='restore')mutate(()=>{t.court='me';t.at=now;t.wakeAt=null},'放回「轮到我」。');
+}
+function toast(msg,canUndo){
+  clearTimeout(toastTimer);const el=$('#toast');el.innerHTML=esc(msg)+(canUndo?' <button id="undo">撤销 <kbd>Z</kbd></button>':'');
+  el.dataset.on='true';toastTimer=setTimeout(()=>el.dataset.on='false',5000);
+}
+function doUndo(){if(!undo)return;tasks=undo;undo=null;save();render();$('#toast').dataset.on='false';toast('已撤销。')}
+
+/* notifications while page is open */
+function maybeNotify(now){
+  if(!settings.notif)return;
+  for(const t of tasks){
+    const due=(isHot(t,now)||(t.court==='me'&&t.wakeAt&&t.wakeAt<=now));
+    if(due&&!notified.has(t.id)){
+      notified.add(t.id);
+      try{if('Notification' in window&&Notification.permission==='granted')new Notification(t.court==='ai'?'该去看了 · '+t.platform:'到点了 · '+t.platform,{body:t.title})}catch{}
+    }
+  }
+}
+
+/* capture dialog */
+const DEMO_TABS=[
+  {title:'React 状态管理选型 - ChatGPT',url:'https://chatgpt.com/c/68c0a1e2-7b1f-4d3c-9d10-2b6e2b3f0a11',last:'user'},
+  {title:'短剧第 3 集分镜 - Claude',url:'https://claude.ai/chat/3f1a2b4c-5d6e-4f70-8a9b-0c1d2e3f4a5b',last:'assistant'},
+  {title:'Grok / 小红书投放数据解读',url:'https://grok.com/c/7a9c1c2e-4f2b-4d7e-9b3a-1e2f3a4b5c6d',last:'user'}
+];
+function detectPlat(url){if(/chatgpt\.com|openai\.com/i.test(url))return 'ChatGPT';if(/claude\.ai/i.test(url))return 'Claude';if(/grok\.com|x\.com\/i\/grok/i.test(url))return 'Grok';return null}
+function cleanTitle(s){return s.replace(/\s*[-–—|\/]\s*(ChatGPT|Claude|Grok)\s*$/i,'').replace(/^\s*(ChatGPT|Claude|Grok)\s*[-–—|\/]\s*/i,'').trim()}
+let demoIdx=0;
+function capture(){
+  const tab=DEMO_TABS[demoIdx++%DEMO_TABS.length];
+  const court=tab.last==='user'?'ai':'me';
+  const t={id:Date.now(),platform:detectPlat(tab.url)||'ChatGPT',title:cleanTitle(tab.title),next:'',url:tab.url,court,at:Date.now(),wakeAt:null};
+  const dup=tasks.find(x=>x.url&&x.url===t.url&&x.court!=='done');
+  if(dup){mutate(()=>{dup.court=court;dup.at=Date.now();dup.wakeAt=null},`这条已经在记了，更新为「${court==='ai'?'等 AI':'轮到我'}」。`);sel=dup.id;view=court;render();return}
+  mutate(()=>tasks.push(t),court==='ai'?`已记「${t.title}」→ 等 AI。最后一条是你发的。`:`已记「${t.title}」→ 轮到我。最后一条是它回的。`);
+  view=court;platFilter='';sel=t.id;render();
+}
+function simulateReply(){
+  const now=Date.now();
+  const t=tasks.filter(t=>t.court==='ai').sort((a,b)=>a.at-b.at)[0];
+  if(!t){toast('没有在等的会话可以模拟。');return}
+  mutate(()=>{t.court='me';t.at=now;notified.delete(t.id)},`${t.platform} 回了「${t.title}」，已自动翻到「轮到我」。`);
+  try{if(settings.notif&&'Notification' in window&&Notification.permission==='granted')new Notification(t.platform+' 回了',{body:t.title})}catch{}
+}
+$('#simreply').onclick=simulateReply;
+
+/* clicks */
+document.addEventListener('click',e=>{
+  const b=e.target.closest('button');
+  if(!b)return;
+  if(b.dataset.view){view=b.dataset.view;sel=null;render();return}
+  if(b.dataset.plat!==undefined){platFilter=platFilter===b.dataset.plat?'':b.dataset.plat;render();return}
+  if(b.id==='undo'){doUndo();return}
+  if(b.dataset.a){const row=b.closest('.row');act(Number(row.dataset.id),b.dataset.a,b.dataset.m);return}
+});
+document.addEventListener('click',e=>{const row=e.target.closest('.row');if(row&&!e.target.closest('button,a,summary')){sel=Number(row.dataset.id);document.querySelectorAll('.row').forEach(r=>r.dataset.sel=String(Number(r.dataset.id)===sel))}});
+$('#add').onclick=capture;
+$('#q').oninput=render;
+$('#reset').onclick=()=>{undo=JSON.parse(JSON.stringify(tasks));tasks=sample();notified.clear();save();view='me';platFilter='';$('#q').value='';render();toast('已恢复演示数据。',true)};
+$('#threshold').onchange=e=>{settings.threshold=Number(e.target.value);notified.clear();save();render()};
+$('#notif').onclick=async()=>{
+  if(!settings.notif){
+    try{if(!('Notification' in window)){toast('这个环境不支持通知。');return}
+      const p=Notification.permission==='granted'?'granted':await Notification.requestPermission();
+      if(p!=='granted'){toast('浏览器没有允许通知。');return}
+    }catch{toast('这个环境不支持通知。');return}
+  }
+  settings.notif=!settings.notif;$('#notif').setAttribute('aria-checked',settings.notif);save();
+  toast(settings.notif?'页面开着时会弹系统通知。':'已关闭通知。');
+};
+function applyTheme(){
+  const r=document.documentElement;
+  if(settings.theme==='system')r.removeAttribute('data-theme');else r.setAttribute('data-theme',settings.theme);
+  $('#theme').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.t===settings.theme));
+}
+$('#theme').onclick=e=>{const b=e.target.closest('button');if(b){settings.theme=b.dataset.t;save();applyTheme()}};
+
+/* keyboard */
+document.addEventListener('keydown',e=>{
+  const inField=/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
+  if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();capture();return}
+  if(inField){if(e.key==='Escape')e.target.blur();return}
+  const rows=[...document.querySelectorAll('.row')],ids=rows.map(r=>Number(r.dataset.id));
+  let i=ids.indexOf(sel);
+  const k=e.key.toLowerCase();
+  if(k==='j'||k==='k'||e.key==='ArrowDown'||e.key==='ArrowUp'){
+    if(!ids.length)return;e.preventDefault();
+    i=(k==='j'||e.key==='ArrowDown')?Math.min(i+1,ids.length-1):Math.max(i-1,0);
+    sel=ids[i];rows.forEach(r=>r.dataset.sel=String(Number(r.dataset.id)===sel));rows[i].scrollIntoView({block:'nearest'});return;
+  }
+  if(k==='n'){e.preventDefault();capture();return}
+  if(k==='/'){e.preventDefault();$('#q').focus();return}
+  if(k==='z'){doUndo();return}
+  if(['1','2','3','4'].includes(k)){view=['me','ai','later','done'][Number(k)-1];sel=null;render();return}
+  if(sel==null)return;
+  const t=tasks.find(t=>t.id===sel);if(!t)return;
+  if(k==='d')act(sel,'done');
+  else if(k==='r'&&t.court!=='done')act(sel,bucket(t)==='later'?'now':'flip');
+  else if(k==='s'&&bucket(t)==='me')act(sel,'snooze','30');
+  else if(e.key==='Enter'){if(t.url)window.open(t.url,'_blank','noopener');else toast('这条没有存网址。')}
+});
+
+load();applyTheme();$('#threshold').value=settings.threshold;$('#notif').setAttribute('aria-checked',settings.notif&&('Notification' in window)&&Notification.permission==='granted');
+render();setInterval(render,20000);
+})();
+</script>
